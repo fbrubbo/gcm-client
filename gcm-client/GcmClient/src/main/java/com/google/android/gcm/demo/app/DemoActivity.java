@@ -30,7 +30,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
-import java.io.IOException;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -47,12 +49,12 @@ public class DemoActivity extends Activity {
      * Substitute you own sender ID here. This is the project number you got
      * from the API Console, as described in "Getting Started."
      */
-    String SENDER_ID = "Your-Sender-ID";
+    String SENDER_ID = "889617428501";
 
     /**
      * Tag used on log messages.
      */
-    static final String TAG = "GCM Demo";
+    static final String TAG = "FlyChecker";
 
     TextView mDisplay;
     GoogleCloudMessaging gcm;
@@ -88,6 +90,20 @@ public class DemoActivity extends Activity {
         super.onResume();
         // Check device for Play Services APK.
         checkPlayServices();
+
+        File dir = getApplicationContext().getFilesDir();
+        String filename = "content.txt";
+        BufferedReader reader;
+        try {
+            reader = new BufferedReader(new InputStreamReader(openFileInput(filename)));
+            String line = "";
+            while ( (line=reader.readLine())!=null ) {
+                mDisplay.append(line + "\n");
+            }
+            reader.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -120,7 +136,7 @@ public class DemoActivity extends Activity {
     private void storeRegistrationId(Context context, String regId) {
         final SharedPreferences prefs = getGcmPreferences(context);
         int appVersion = getAppVersion(context);
-        Log.i(TAG, "Saving regId on app version " + appVersion);
+        Log.i(TAG, "Saving regId on app version " + appVersion + " reg : " + regId);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putString(PROPERTY_REG_ID, regId);
         editor.putInt(PROPERTY_APP_VERSION, appVersion);
@@ -174,7 +190,7 @@ public class DemoActivity extends Activity {
 
                     // You should send the registration ID to your server over HTTP, so it
                     // can use GCM/HTTP or CCS to send messages to your app.
-                    sendRegistrationIdToBackend();
+                    sendRegistrationIdToBackend(regid);
 
                     // For this demo: we don't need to send it because the device will send
                     // upstream messages to a server that echo back the message using the
@@ -226,6 +242,10 @@ public class DemoActivity extends Activity {
             }.execute(null, null, null);
         } else if (view == findViewById(R.id.clear)) {
             mDisplay.setText("");
+            File dir = getApplicationContext().getFilesDir();
+            String filename = "content.txt";
+            File f = new File(dir, filename);
+            f.delete();
         }
     }
 
@@ -239,8 +259,7 @@ public class DemoActivity extends Activity {
      */
     private static int getAppVersion(Context context) {
         try {
-            PackageInfo packageInfo = context.getPackageManager()
-                    .getPackageInfo(context.getPackageName(), 0);
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
             return packageInfo.versionCode;
         } catch (NameNotFoundException e) {
             // should never happen
@@ -254,15 +273,35 @@ public class DemoActivity extends Activity {
     private SharedPreferences getGcmPreferences(Context context) {
         // This sample app persists the registration ID in shared preferences, but
         // how you store the regID in your app is up to you.
-        return getSharedPreferences(DemoActivity.class.getSimpleName(),
-                Context.MODE_PRIVATE);
+        return getSharedPreferences(DemoActivity.class.getSimpleName(), Context.MODE_PRIVATE);
     }
     /**
      * Sends the registration ID to your server over HTTP, so it can use GCM/HTTP or CCS to send
      * messages to your app. Not needed for this demo since the device sends upstream messages
      * to a server that echoes back the message using the 'from' address in the message.
      */
-    private void sendRegistrationIdToBackend() {
-      // Your implementation here.
+    private void sendRegistrationIdToBackend(String regid) {
+        // Your implementation here.
+//        String url = "http://192.168.1.2:8080/FlyChecker/register?regId=" + regid;
+        String url = "http://192.168.1.14:8080/FlyChecker/register?regId=" + regid;
+
+
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setDoOutput(true);
+            conn.setUseCaches(false);
+            conn.setRequestMethod("GET");
+            int status = conn.getResponseCode();
+            if(status!=200)
+                throw new RuntimeException ("ERRO -- status " + status);
+        } catch (Exception e) {
+            e.printStackTrace();
+            mDisplay.append("\nERRO ENVIANDO ID PARA O SERVER: "+e.getMessage());
+            // TODO: deletar id do props.
+        }
+
     }
+
+
+
 }

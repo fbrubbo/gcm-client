@@ -16,6 +16,10 @@
 
 package com.google.android.gcm.demo.app;
 
+import android.app.Notification;
+import android.graphics.Color;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import android.app.IntentService;
@@ -27,6 +31,12 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * This {@code IntentService} does the actual handling of the GCM message.
@@ -60,47 +70,58 @@ public class GcmIntentService extends IntentService {
              * not interested in, or that you don't recognize.
              */
             if (GoogleCloudMessaging.MESSAGE_TYPE_SEND_ERROR.equals(messageType)) {
-                sendNotification("Send error: " + extras.toString());
-            } else if (GoogleCloudMessaging.MESSAGE_TYPE_DELETED.equals(messageType)) {
-                sendNotification("Deleted messages on server: " + extras.toString());
-            // If it's a regular GCM message, do some work.
-            } else if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
-                // This loop represents the service doing some work.
-                for (int i = 0; i < 5; i++) {
-                    Log.i(TAG, "Working... " + (i + 1)
-                            + "/5 @ " + SystemClock.elapsedRealtime());
-                    try {
-                        Thread.sleep(5000);
-                    } catch (InterruptedException e) {
+                sendNotification("FlyCheck Send error: ",  extras.toString());
+            } else {
+                if (GoogleCloudMessaging.MESSAGE_TYPE_DELETED.equals(messageType)) {
+                    sendNotification("FlyCheck Deleted messages on server: ", extras.toString());
+                    // If it's a regular GCM message, do some work.
+                } else {
+                    if (GoogleCloudMessaging.MESSAGE_TYPE_MESSAGE.equals(messageType)) {
+                        String title = extras.getString("title");
+                        String body = extras.getString("body");
+
+                        File dir = getApplicationContext().getFilesDir();
+                        String filename = "content.txt";
+
+                        BufferedOutputStream out = null;
+                        try {
+                            out = new BufferedOutputStream(new FileOutputStream(dir.toString() + "/" + filename, true));
+                            String date = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date());
+                            out.write((date + " - " + title + "\n" + body + "\n--------------------------\n").getBytes());
+                            out.close();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        sendNotification(title, body);
+                        Log.i(TAG, "Received: " + extras.toString());
                     }
                 }
-                Log.i(TAG, "Completed work @ " + SystemClock.elapsedRealtime());
-                // Post notification of received message.
-                sendNotification("Received: " + extras.toString());
-                Log.i(TAG, "Received: " + extras.toString());
             }
         }
         // Release the wake lock provided by the WakefulBroadcastReceiver.
         GcmBroadcastReceiver.completeWakefulIntent(intent);
     }
 
+
+
     // Put the message into a notification and post it.
     // This is just one simple example of what you might choose to do with
     // a GCM message.
-    private void sendNotification(String msg) {
-        mNotificationManager = (NotificationManager)
-                this.getSystemService(Context.NOTIFICATION_SERVICE);
+    private void sendNotification(String title, String body) {
+        mNotificationManager = (NotificationManager) this.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, DemoActivity.class), 0);
+        Intent intent = new Intent(this, DemoActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP );
+        PendingIntent contentIntent = PendingIntent.getActivity(this, 0, intent, 0);
 
-        NotificationCompat.Builder mBuilder =
-                new NotificationCompat.Builder(this)
-        .setSmallIcon(R.drawable.ic_stat_gcm)
-        .setContentTitle("GCM Notification")
-        .setStyle(new NotificationCompat.BigTextStyle()
-        .bigText(msg))
-        .setContentText(msg);
+        Uri uri= RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        NotificationCompat.Builder mBuilder =  new NotificationCompat.Builder(this)
+            .setSmallIcon(R.drawable.ic_stat_gcm)
+            .setContentTitle(title)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(body).setSound(uri).setAutoCancel(true)
+            .setLights(84, 233, 99);
 
         mBuilder.setContentIntent(contentIntent);
         mNotificationManager.notify(NOTIFICATION_ID, mBuilder.build());
